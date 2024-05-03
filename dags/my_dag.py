@@ -1,4 +1,4 @@
-from cake_airflow_custom_module.utils import test
+from cake_airflow_custom_package.utils import test
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime

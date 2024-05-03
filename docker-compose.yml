@@ -3,7 +3,10 @@
 ---
 x-airflow-common:
   &airflow-common
-  image: apache/airflow:2.9.0-python3.10 # This is the newest Python 3.10 version at the time of doing this assignment.
+  image: customized_airflow_by_van_for_cake_assignment # A very verbose name to avoid colliding with remote DockerHub
+  build:
+    context: .
+    dockerfile: Dockerfile
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -215,3 +218,14 @@ services:
 #      <<: *airflow-common-depends-on
 #      airflow-init:
 #        condition: service_completed_successfully
+  sftp_server:
+    # For the sake of simplicity, a single SFTP server can be used to simulate both the Source and Destination,
+    # As the namespacing is done at the ACL level
+    image: atmoz/sftp
+    ports:
+      - "2222:22"
+    volumes:
+      - ./ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
+      - ./ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
+    command: source:source:::source destination:destination:::destination
+    restart: unless-stopped
