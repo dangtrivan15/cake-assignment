@@ -1,15 +1,13 @@
 from cake_airflow_custom_package.api import DataPoint, Source, Destination
 from airflow.providers.sftp.hooks.sftp import SFTPHook
 from datetime import datetime
-from pathlib import Path
 from typing import Iterable, Optional
-from airflow.models import Connection
-from os.path import basename
+from os.path import basename, join
 
 
 class File:
-    def __init__(self, path: Path, last_modified_time: datetime):
-        self.path: Path = path
+    def __init__(self, path: str, last_modified_time: datetime):
+        self.path: str = path
         self.last_modified_time: datetime = last_modified_time
 
 
@@ -36,7 +34,7 @@ class SFTPSource(Source):
     def __init__(
             self,
             connection_id: str,
-            dir_path: Path,
+            dir_path: str,
     ):
         self._connection_id = connection_id
         self._hook = SFTPHook(ftp_conn_id=self._connection_id)
@@ -53,23 +51,23 @@ class SFTPSource(Source):
 
     def list_new_files(self, start_from: Optional[datetime]) -> list[File]:
         result = []
-        for file_name in self._hook.list_directory(self.dir_path.name):
-            file_path = str((self.dir_path / file_name).absolute())
-            print(file_path)
+        for file_name in self._hook.list_directory(self.dir_path):
+            file_path = join(self.dir_path, file_name)
             modified_time_str = self._hook.get_mod_time(file_path)
             modified_time = datetime.strptime(modified_time_str, "%Y%m%d%H%M%S")
             # This is considered risky as it imposes implicit dependency on provider's time string format implementation
+            print(f"{file_name} - {modified_time} - {start_from}")
             if start_from is None or modified_time > start_from:
                 result.append(
                     File(
-                        path=Path(file_path),
+                        path=file_path,
                         last_modified_time=modified_time
                     )
                 )
         return result
 
     def read_file(self, file: File) -> Iterable[bytes]:
-        with self._hook.conn.open(file.path.name, "rb") as f:
+        with self._hook.get_conn().open(file.path, "rb") as f:
             while True:
                 data = f.read(1024)
                 if not data:
@@ -79,10 +77,10 @@ class SFTPSource(Source):
     def tear_down(self):
         self._hook.close_conn()
 
-    def has_new_data(self, from_cursor):
+    def has_new_data(self, from_cursor: Optional[datetime]):
         return len(self.list_new_files(start_from=from_cursor))
 
-    def read(self, from_cursor) -> Iterable[DataPoint]:
+    def read(self, from_cursor: Optional[datetime]) -> Iterable[DataPoint]:
         for file in self.list_new_files(start_from=from_cursor):
             yield FileContent(
                 data=self.read_file(file),
@@ -95,7 +93,7 @@ class SFTPDest(Destination):
     def __init__(
             self,
             connection_id: str,
-            dir_path: Path,
+            dir_path: str,
     ):
         self._connection_id = connection_id
         self._hook = SFTPHook(ftp_conn_id=self._connection_id)
@@ -107,9 +105,17 @@ class SFTPDest(Destination):
             raise Exception(f"Connection id {self._connection_id} tested fail")
 
     def write(self, data: FileContent):
-        # TODO: handle write failure, even for updated file case
-        with self._hook.conn.open((self.dir_path / data.file_name).name, "wb") as f:
-            for chunk in data.data:
-                f.write(chunk)
-
-
+        dest_file_path = join(self.dir_path, data.file_name)
+        previously_exists = self._hook.path_exists(dest_file_path)
+        bak_file_path = f"{dest_file_path}.bak"
+        if previously_exists:
+            self._hook.get_conn().rename(dest_file_path, bak_file_path)
+        try:
+            with self._hook.get_conn().open(dest_file_path, "wb") as f:
+                for chunk in data.data:
+                    f.write(chunk)
+        except:
+            self._hook.delete_file(dest_file_path)
+            if previously_exists:
+                self._hook.get_conn().rename(bak_file_path, dest_file_path)
+            raise

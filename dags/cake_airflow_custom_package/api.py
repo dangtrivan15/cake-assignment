@@ -1,4 +1,5 @@
 from typing import Iterable
+from datetime import datetime
 
 
 class DataPoint:
@@ -7,7 +8,7 @@ class DataPoint:
         raise NotImplementedError
 
     @property
-    def cursor(self):
+    def cursor(self) -> datetime:
         raise NotImplementedError
 
 
@@ -15,10 +16,11 @@ class Source:
     def health_check(self):
         raise NotImplementedError
 
-    def has_new_data(self, from_cursor):
-        raise NotImplementedError
-
-    def read(self, from_cursor) -> Iterable[DataPoint]:
+    def read(self, from_cursor: datetime) -> Iterable[DataPoint]:
+        """
+        :param from_cursor: a timestamp to filter out older data
+        :return: an iterable of DataPoint to be piped, this must be sorted in each DataPoint's cursor key
+        """
         raise NotImplementedError
 
 
@@ -27,6 +29,10 @@ class Destination:
         raise NotImplementedError
 
     def write(self, data: DataPoint):
+        """
+        :param data: the data to write, this is atomic in aspect of the source
+        :return: None. However, this operation must be revertible for this data in case of Exception
+        """
         raise NotImplementedError
 
 
@@ -34,10 +40,10 @@ class StateMachine:
     def health_check(self):
         raise NotImplementedError
 
-    def update_state(self, state: dict):
+    def update_state(self, value: datetime):
         raise NotImplementedError
 
-    def get_latest_state(self) -> dict:
+    def get_latest_cursor(self) -> datetime:
         raise NotImplementedError
 
 
@@ -57,23 +63,10 @@ class Pipeline:
         self.destination.health_check()
         self.state_machine.health_check()
 
-    def has_new_data(self) -> bool:
-        latest_state = self.state_machine.get_latest_state()
-        if latest_state is not None:
-            cursor = latest_state['cursor']
-        else:
-            cursor = None
-        return self.source.has_new_data(cursor)
-
     def sync(self):
-        latest_state = self.state_machine.get_latest_state()
-        if latest_state is not None:
-            cursor = latest_state['cursor']
-        else:
-            cursor = None
-        for data_point in self.source.read(cursor):
+        for data_point in self.source.read(
+                self.state_machine.get_latest_cursor()
+        ):
             self.destination.write(data_point)
-            self.state_machine.update_state(
-                {"cursor": data_point.cursor}
-            )
+            self.state_machine.update_state(data_point.cursor)
 

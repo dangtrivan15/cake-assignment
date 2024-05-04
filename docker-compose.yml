@@ -18,9 +18,9 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-    AIRFLOW_CONN_SFTP_SOURCE: 'SSH://source:source@sftp_server:22'
+    AIRFLOW_CONN_SFTP_SOURCE: 'SSH://source:source@sftp_source:22'
     SFTP_SOURCE_DIR_PATH: 'source'
-    AIRFLOW_CONN_SFTP_DEST: 'SSH://destination:destination@sftp_server:22'
+    AIRFLOW_CONN_SFTP_DEST: 'SSH://destination:destination@sftp_destination:22'
     SFTP_DEST_DIR_PATH: 'destination'
     PG_URI: 'postgresql://airflow:airflow@postgres/airflow'
     _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-sftp==4.9.1 psycopg2-binary==2.9.9
@@ -225,16 +225,17 @@ services:
 #      <<: *airflow-common-depends-on
 #      airflow-init:
 #        condition: service_completed_successfully
-  sftp_server:
-    # For the sake of simplicity, a single SFTP server can be used to simulate both the Source and Destination,
-    # As the namespacing is done at the ACL level
+  sftp_source:
     image: atmoz/sftp
-    ports:
-      - "2222:22"
     volumes:
-      - ./ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
-      - ./ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
+      - ./ssh_source/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
       - ./sftp_volume_source:/home/source/source
+    command: source:source:::source
+    restart: unless-stopped
+  sftp_destination:
+    image: atmoz/sftp
+    volumes:
+      - ./ssh_dest/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
       - ./sftp_volume_dest:/home/destination/destination
-    command: source:source:::source destination:destination:::destination
+    command: destination:destination:::destination
     restart: unless-stopped

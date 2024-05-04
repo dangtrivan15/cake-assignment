@@ -163,3 +163,5 @@ logs/*
 
 .idea
 .python-version
+
+sftp_volume_dest/*
