@@ -3,10 +3,11 @@
 ---
 x-airflow-common:
   &airflow-common
-  image: customized_airflow_by_van_for_cake_assignment # A very verbose name to avoid colliding with remote DockerHub
-  build:
-    context: .
-    dockerfile: Dockerfile
+  image: apache/airflow:2.9.0-python3.10
+#  image: customized_airflow_by_van_for_cake_assignment # A very verbose name to avoid colliding with remote DockerHub
+#  build:
+#    context: .
+#    dockerfile: Dockerfile
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -17,6 +18,12 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW_CONN_SFTP_SOURCE: 'SSH://source:source@sftp_server:22'
+    SFTP_SOURCE_DIR_PATH: 'source'
+    AIRFLOW_CONN_SFTP_DEST: 'SSH://destination:destination@sftp_server:22'
+    SFTP_DEST_DIR_PATH: 'destination'
+    PG_URI: 'postgresql://airflow:airflow@postgres/airflow'
+    _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-sftp==4.9.1 psycopg2-binary==2.9.9
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -227,5 +234,7 @@ services:
     volumes:
       - ./ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
       - ./ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
+      - ./sftp_volume_source:/home/source/source
+      - ./sftp_volume_dest:/home/destination/destination
     command: source:source:::source destination:destination:::destination
     restart: unless-stopped
