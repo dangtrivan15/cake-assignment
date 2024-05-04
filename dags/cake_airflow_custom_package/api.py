@@ -1,15 +1,10 @@
-from typing import Iterable
+from typing import Iterable, Any
 from datetime import datetime
 
 
 class DataPoint:
-    @property
-    def data(self):
-        raise NotImplementedError
-
-    @property
-    def cursor(self) -> datetime:
-        raise NotImplementedError
+    data: Any
+    cursor: datetime
 
 
 class Source:
@@ -47,16 +42,30 @@ class StateMachine:
         raise NotImplementedError
 
 
+class Transformer:
+    def transform(self, data_point: DataPoint) -> Iterable[DataPoint]:
+        raise NotImplementedError
+
+
+class NoTransform(Transformer):
+    def transform(self, data_point: DataPoint) -> Iterable[DataPoint]:
+        yield data_point
+
+
 class Pipeline:
     def __init__(
             self,
             source: Source,
             destination: Destination,
-            state_machine: StateMachine
+            state_machine: StateMachine,
+            transformer: Transformer = None
     ):
         self.source = source
         self.destination = destination
         self.state_machine = state_machine
+        if transformer is None:
+            transformer = NoTransform()
+        self.transformer = transformer
 
     def health_check(self):
         self.source.health_check()
@@ -67,6 +76,7 @@ class Pipeline:
         for data_point in self.source.read(
                 self.state_machine.get_latest_cursor()
         ):
-            self.destination.write(data_point)
-            self.state_machine.update_state(data_point.cursor)
+            for transformed_data_point in self.transformer.transform(data_point):
+                self.destination.write(transformed_data_point)
+                self.state_machine.update_state(transformed_data_point.cursor)
 

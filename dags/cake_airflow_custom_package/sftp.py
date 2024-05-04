@@ -1,4 +1,4 @@
-from cake_airflow_custom_package.api import DataPoint, Source, Destination
+from cake_airflow_custom_package.api import DataPoint, Source, Destination, Transformer
 from airflow.providers.sftp.hooks.sftp import SFTPHook
 from datetime import datetime
 from typing import Iterable, Optional
@@ -12,22 +12,10 @@ class File:
 
 
 class FileContent(DataPoint):
-    def __init__(self, data: Iterable[bytes], cursor: datetime, file_name: str):
-        self._data = data
-        self._cursor = cursor
-        self._file_name = file_name
-
-    @property
-    def file_name(self):
-        return self._file_name
-
-    @property
-    def data(self) -> Iterable[bytes]:
-        return self._data
-
-    @property
-    def cursor(self) -> datetime:
-        return self._cursor
+    def __init__(self, data: Iterable[str], cursor: datetime, file_name: str):
+        self.data = data
+        self.cursor = cursor
+        self.file_name = file_name
 
 
 class SFTPSource(Source):
@@ -66,8 +54,8 @@ class SFTPSource(Source):
                 )
         return result
 
-    def read_file(self, file: File) -> Iterable[bytes]:
-        with self._hook.get_conn().open(file.path, "rb") as f:
+    def read_file(self, file: File) -> Iterable[str]:
+        with self._hook.get_conn().open(file.path, "r") as f:
             while True:
                 data = f.read(1024)
                 if not data:
@@ -111,7 +99,7 @@ class SFTPDest(Destination):
         if previously_exists:
             self._hook.get_conn().rename(dest_file_path, bak_file_path)
         try:
-            with self._hook.get_conn().open(dest_file_path, "wb") as f:
+            with self._hook.get_conn().open(dest_file_path, "w") as f:
                 for chunk in data.data:
                     f.write(chunk)
         except:
@@ -119,3 +107,13 @@ class SFTPDest(Destination):
             if previously_exists:
                 self._hook.get_conn().rename(bak_file_path, dest_file_path)
             raise
+        else:
+            self._hook.delete_file(bak_file_path)
+
+
+class ReplacingWithATransformer(Transformer):
+    def transform(self, data_point: FileContent) -> Iterable[FileContent]:
+        def replace_str_with_a(s: str):
+            return "a" * len(s)
+        data_point.data = map(replace_str_with_a, data_point.data)
+        yield data_point
