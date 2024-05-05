@@ -1,24 +1,33 @@
-from typing import Iterable, Any
+from typing import Iterable, Any, Optional
 from datetime import datetime
+
+
+class State:
+    id: str
+    cursor: datetime
+
+    def __init__(self, id: str, cursor: datetime):
+        self.id = id
+        self.cursor = cursor
 
 
 class DataPoint:
     """
-    This represents data in a "cursor-atomic" manner.
+    This represents data in a "State-atomic" manner.
     This could be a container for a chunk of data (for batching) or an individual record itself, based on implementation
     """
     data: Any
-    cursor: datetime
+    state: State
 
 
 class Source:
     def health_check(self):
         raise NotImplementedError
 
-    def read(self, from_cursor: datetime) -> Iterable[DataPoint]:
+    def read(self, from_state: State) -> Iterable[DataPoint]:
         """
-        :param from_cursor: a timestamp to filter out older data
-        :return: an iterable of DataPoint to be piped, this must be sorted in each DataPoint's cursor key
+        :param from_state: state to filter out already synced data
+        :return: an iterable of DataPoint to be piped, this must be sorted in each DataPoint's by (cursor key, id)
         """
         raise NotImplementedError
 
@@ -45,10 +54,10 @@ class StateMachine:
     def health_check(self):
         raise NotImplementedError
 
-    def update_cursor(self, value: datetime):
+    def update_state(self, state: State):
         raise NotImplementedError
 
-    def get_latest_cursor(self) -> datetime:
+    def get_latest_state(self) -> Optional[State]:
         raise NotImplementedError
 
     def tear_down(self):
@@ -91,13 +100,12 @@ class Pipeline:
         self.state_machine.tear_down()
 
     def sync(self):
+        state = self.state_machine.get_latest_state()
         try:
-            for data_point in self.source.read(
-                    self.state_machine.get_latest_cursor()
-            ):
+            for data_point in self.source.read(state):
                 for transformed_data_point in self.transformer.transform(data_point):
                     self.destination.write(transformed_data_point)
-                    self.state_machine.update_cursor(transformed_data_point.cursor)
+                    self.state_machine.update_state(transformed_data_point.state)
         finally:
             self.tear_down()
 

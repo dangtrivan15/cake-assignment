@@ -20,7 +20,7 @@ with DAG(
         dir_path=getenv("SFTP_DEST_DIR_PATH")
     )
     state_machine = PostgresStateMachine(
-        id=d.dag_id,
+        pipeline_id=d.dag_id,
         uri=getenv("PG_URI")
     )
     transformer = ReplacingSpaceWithUnderScoreTransformer()

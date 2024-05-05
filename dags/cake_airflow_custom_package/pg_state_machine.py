@@ -1,14 +1,11 @@
-from cake_airflow_custom_package.api import StateMachine
+from cake_airflow_custom_package.api import StateMachine, State
 from psycopg2 import connect
-from urllib.parse import quote_plus
-import json
 from typing import Optional
-from datetime import datetime
 
 
 class PostgresStateMachine(StateMachine):
-    def __init__(self, id, uri):
-        self.id = id
+    def __init__(self, pipeline_id, uri):
+        self.pipeline_id = pipeline_id
         self.conn = connect(uri)
         self.init_schema()
 
@@ -16,8 +13,9 @@ class PostgresStateMachine(StateMachine):
         with self.conn.cursor() as cur:
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS _cake_state_machine ("
-                "   id VARCHAR PRIMARY KEY,"
-                "   cursor timestamp"
+                "   pipeline_id VARCHAR PRIMARY KEY,"
+                "   cursor timestamp,"
+                "   id VARCHAR"
                 ")"
             )
         self.conn.commit()
@@ -26,35 +24,33 @@ class PostgresStateMachine(StateMachine):
         with self.conn.cursor() as cur:
             cur.execute("SELECT 1")
 
-    def update_cursor(self, value: datetime):
+    def update_state(self, state: State):
         with self.conn.cursor() as cur:
             cur.execute(
-                f"INSERT INTO _cake_state_machine (id, cursor) "
-                f"VALUES (%(id)s, %(cursor)s) "
-                f"ON CONFLICT (id) DO UPDATE SET cursor = EXCLUDED.cursor",
+                f"INSERT INTO _cake_state_machine (pipeline_id, cursor, id) "
+                f"VALUES (%(pipeline_id)s, %(cursor)s, %(id)s) "
+                f"ON CONFLICT (pipeline_id) DO UPDATE SET cursor = EXCLUDED.cursor, id = EXCLUDED.id",
                 vars={
-                    'id': self.id,
-                    'cursor': value
+                    'pipeline_id': self.pipeline_id,
+                    'cursor': state.cursor,
+                    'id': state.id,
                 }
             )
         self.conn.commit()
 
-    def get_latest_cursor(self) -> Optional[datetime]:
+    def get_latest_state(self) -> Optional[State]:
         with self.conn.cursor() as cur:
             cur.execute(
-                f"SELECT cursor FROM _cake_state_machine WHERE id = %(id)s",
+                f"SELECT cursor, id FROM _cake_state_machine WHERE pipeline_id = %(pipeline_id)s",
                 vars={
-                    'id': self.id,
+                    'pipeline_id': self.pipeline_id,
                 }
             )
             result = cur.fetchone()
             if result is not None:
-                result = result[0]
+                cursor, id = result
+                result = State(cursor=cursor, id=id)
             return result
 
     def tear_down(self):
         self.conn.close()
-
-
-def _make_db_uri(user, password, host, port, database, protocol):
-    return f'{protocol}://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{database}'

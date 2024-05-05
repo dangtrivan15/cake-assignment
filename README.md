@@ -49,24 +49,24 @@ However, when syncing data in chunks, `Thepassword` might be chunked into `Thepa
 A minor optimization for performance is to sync data in binary form, avoid the cost of decoding (at source) and encoding (at destination) the data, but it also affects flexibility of the transformation.
 * Operations on the source file system might affect data synchronization between the 2 server.
 For example, copying a file and pasting, creating a new one retain the `last_modified_time` metadata on some OSs, causing it to be skipped when syncing if the original file is already synced, and the cursor of the pipeline moved up to a more recent timestamp.
-* A timestamp cursor is hardcoded throughout the solution. In case a custom cursor is needed, the pipeline has to be "source-schema cognizant", which is incompatible in the current context as mentioned before.
+* A timestamp cursor is hardcoded throughout the solution. In case a custom cursor is needed, the pipeline has to be "source-schema cognizant", which is incompatible in the current context as mentioned before. An unique id is supported to order the source data in case the cursors are the same between multiple data, and it also plays part in the pipeline's state.
 
 ## Solution Design
 ![Diagram](Cake_SFTP_Diagram.svg)
 
-### 1. Interfaces represent the entities in a ETL pipelines: `Source`, `Destination`, `StateMachine`, `Transformer` and `DataPoint`
+### 1. Interfaces represent the entities in a ETL pipelines: `Source`, `Destination`, `StateMachine`, `Transformer`, `DataPoint` and a `State`
 
 * The `DataPoint` represents the data to be transferred.
-The main requirement here is that it needs to be cursor-atomic, that is, the cursor will only be updated if the content of this entity is successfully written to the destination, 
+The main requirement here is that it needs to be State-atomic, that is, the state will only be updated if the content of this entity is successfully written to the destination, 
 partial written is not permitted, even if that content is semantically dividable. This feature allows chunking data on-demand while also maintains data consistency.
 
 * The `Source` and `Destination` represent the "Airflow's Connections", with extra features added for ETL workload.
-While the `Source` is required to sort its output `DataPoint` by cursor (simply to correctly maintain the cursor),
+While the `Source` is required to sort its output `DataPoint` by state (to correctly move the cursor upward),
 the `Destination` is required to be revertible if it fails to ingest any `DataPoint` (only for that `DataPoint` content), even if it is partially ingested.
 The 2 requirements are needed to maintain data consistency.
 
-* The `StateMachine` is quite simple, it persistently stores cursor and later retrieves that cursor as per invocation. 
-This ease the pressure of changing the cursor persistence layer.
+* The `StateMachine` is quite simple, it persistently stores tuple of (cursor, id) and later retrieves that as per invocation. 
+This ease the pressure of changing the state persistence layer. A `State` object is used to maintain pipeline state, which contains of 2 field, a timestamp cursor and an `id` field as per previously mentioned.
 
 * The `Transformer` serves for on-the-fly transformation purpose. 
 Joining transformation is currently not supported and will require a totally different mechanism.
@@ -85,9 +85,9 @@ Joining transformation is currently not supported and will require a totally dif
 SFTP Implementations to above interfaces are straight forward with few edge cases handling and "decorations":
 * A `File` class was created to map with the author's mental model more easily.
 * A `FileContent` implementation of `DataPoint` represent the content of the file atomically, 
-while chunking its content to small strings (or bytes if needed) lazily to avoid OOM for big files.
+while chunking its content to small byte arrays lazily to avoid OOM for big files.
 * The `Source` implementation is straight forward by reading data in binary form in fix sized (1024 bytes) chunks,
-while the `Destination` needs to handle revert, even for the case of already-exist file, by backing-up the file before processing the update operation. Both just leveraged the use of Airflow SFTP provider.
+while the `Destination` needs to handle revert, even for the case of already-exist file, by backing-up the file before processing the update operation. Both just leveraged the use of Airflow SFTP provider. Here the file's name is used as the `id` for state management.
 * The `StateMachine` simply share the Airflow's Postgres, using `psycopg2` as its client.
 * For simplicity, the `Transformer` here convert all `\s` characters to `_`. 
 This can be done for a single character, which can be correctly proceeded in any data chunk without knowing the content of the next one (as chunking can not be done smaller than a single character).

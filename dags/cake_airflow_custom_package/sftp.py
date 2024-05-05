@@ -1,4 +1,4 @@
-from cake_airflow_custom_package.api import DataPoint, Source, Destination, Transformer
+from cake_airflow_custom_package.api import DataPoint, Source, Destination, Transformer, State
 from airflow.providers.sftp.hooks.sftp import SFTPHook
 from datetime import datetime
 from typing import Iterable, Optional
@@ -7,15 +7,15 @@ from os.path import basename, join
 
 class File:
     def __init__(self, path: str, last_modified_time: datetime):
-        self.path: str = path
-        self.last_modified_time: datetime = last_modified_time
+        self.path = path
+        self.last_modified_time = last_modified_time
 
 
 class FileContent(DataPoint):
-    def __init__(self, data: Iterable[bytes], cursor: datetime, file_name: str):
+    def __init__(self, data: Iterable[bytes], file_path: str, state: State):
         self.data = data
-        self.cursor = cursor
-        self.file_name = file_name
+        self.file_path = file_path
+        self.state = state
 
 
 class SFTPSource(Source):
@@ -37,22 +37,17 @@ class SFTPSource(Source):
         if not is_ok:
             raise Exception(f"Connection id {self._connection_id} tested fail")
 
-    def list_new_files(self, start_from: Optional[datetime]) -> list[File]:
-        result = []
+    def list_new_files(self, from_time: datetime, from_name: str) -> list[File]:
+        result: list[File] = []
         for file_name in self._hook.list_directory(self.dir_path):
             file_path = join(self.dir_path, file_name)
             modified_time_str = self._hook.get_mod_time(file_path)
             modified_time = datetime.strptime(modified_time_str, "%Y%m%d%H%M%S")
             # This is considered risky as it imposes implicit dependency on provider's time string format implementation
-            print(f"{file_name} - {modified_time} - {start_from}")
-            if start_from is None or modified_time > start_from:
-                result.append(
-                    File(
-                        path=file_path,
-                        last_modified_time=modified_time
-                    )
-                )
-        return result
+            file = File(path=file_path, last_modified_time=modified_time)
+            if (from_time, from_name) < (file.last_modified_time, file.path):
+                result.append(file)
+        return sorted(result, key=lambda f: (f.last_modified_time, f.path))
 
     def read_file(self, file: File) -> Iterable[bytes]:
         with self._hook.get_conn().open(file.path, "rb") as f:
@@ -65,12 +60,21 @@ class SFTPSource(Source):
     def tear_down(self):
         self._hook.close_conn()
 
-    def read(self, from_cursor: Optional[datetime]) -> Iterable[DataPoint]:
-        for file in self.list_new_files(start_from=from_cursor):
+    def read(self, from_state: Optional[State]) -> Iterable[DataPoint]:
+        if from_state is None:
+            from_time = datetime(1970, 1, 1, 0, 0, 0, 0)
+            from_name = ''
+        else:
+            from_time, from_name = from_state.cursor, from_state.id
+
+        for file in self.list_new_files(from_time=from_time, from_name=from_name):
             yield FileContent(
                 data=self.read_file(file),
-                cursor=file.last_modified_time,
-                file_name=basename(file.path)
+                state=State(
+                    cursor=file.last_modified_time,
+                    id=file.path
+                ),
+                file_path=file.path,
             )
 
 
@@ -90,7 +94,7 @@ class SFTPDest(Destination):
             raise Exception(f"Connection id {self._connection_id} tested fail")
 
     def write(self, data: FileContent):
-        dest_file_path = join(self.dir_path, data.file_name)
+        dest_file_path = join(self.dir_path, basename(data.file_path))
         previously_exists = self._hook.path_exists(dest_file_path)
         bak_file_path = f"{dest_file_path}.bak"
         if previously_exists:
@@ -105,7 +109,8 @@ class SFTPDest(Destination):
                 self._hook.get_conn().rename(bak_file_path, dest_file_path)
             raise
         else:
-            self._hook.delete_file(bak_file_path)
+            if previously_exists:
+                self._hook.delete_file(bak_file_path)
 
     def tear_down(self):
         self._hook.close_conn()
