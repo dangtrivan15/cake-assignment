@@ -12,7 +12,7 @@ class File:
 
 
 class FileContent(DataPoint):
-    def __init__(self, data: Iterable[str], cursor: datetime, file_name: str):
+    def __init__(self, data: Iterable[bytes], cursor: datetime, file_name: str):
         self.data = data
         self.cursor = cursor
         self.file_name = file_name
@@ -54,8 +54,8 @@ class SFTPSource(Source):
                 )
         return result
 
-    def read_file(self, file: File) -> Iterable[str]:
-        with self._hook.get_conn().open(file.path, "r") as f:
+    def read_file(self, file: File) -> Iterable[bytes]:
+        with self._hook.get_conn().open(file.path, "rb") as f:
             while True:
                 data = f.read(1024)
                 if not data:
@@ -64,9 +64,6 @@ class SFTPSource(Source):
 
     def tear_down(self):
         self._hook.close_conn()
-
-    def has_new_data(self, from_cursor: Optional[datetime]):
-        return len(self.list_new_files(start_from=from_cursor))
 
     def read(self, from_cursor: Optional[datetime]) -> Iterable[DataPoint]:
         for file in self.list_new_files(start_from=from_cursor):
@@ -99,7 +96,7 @@ class SFTPDest(Destination):
         if previously_exists:
             self._hook.get_conn().rename(dest_file_path, bak_file_path)
         try:
-            with self._hook.get_conn().open(dest_file_path, "w") as f:
+            with self._hook.get_conn().open(dest_file_path, "wb") as f:
                 for chunk in data.data:
                     f.write(chunk)
         except:
@@ -110,10 +107,14 @@ class SFTPDest(Destination):
         else:
             self._hook.delete_file(bak_file_path)
 
+    def tear_down(self):
+        self._hook.close_conn()
 
-class ReplacingWithATransformer(Transformer):
+
+class ReplacingSpaceWithUnderScoreTransformer(Transformer):
+
     def transform(self, data_point: FileContent) -> Iterable[FileContent]:
-        def replace_str_with_a(s: str):
-            return "a" * len(s)
-        data_point.data = map(replace_str_with_a, data_point.data)
+        def replace_space_with_under_score(s: bytes):
+            return s.replace(b" ", b"_")
+        data_point.data = map(replace_space_with_under_score, data_point.data)
         yield data_point

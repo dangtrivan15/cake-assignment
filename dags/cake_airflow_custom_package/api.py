@@ -3,6 +3,10 @@ from datetime import datetime
 
 
 class DataPoint:
+    """
+    This represents data in a "cursor-atomic" manner.
+    This could be a container for a chunk of data (for batching) or an individual record itself, based on implementation
+    """
     data: Any
     cursor: datetime
 
@@ -18,6 +22,9 @@ class Source:
         """
         raise NotImplementedError
 
+    def tear_down(self):
+        raise NotImplementedError
+
 
 class Destination:
     def health_check(self):
@@ -30,15 +37,21 @@ class Destination:
         """
         raise NotImplementedError
 
+    def tear_down(self):
+        raise NotImplementedError
+
 
 class StateMachine:
     def health_check(self):
         raise NotImplementedError
 
-    def update_state(self, value: datetime):
+    def update_cursor(self, value: datetime):
         raise NotImplementedError
 
     def get_latest_cursor(self) -> datetime:
+        raise NotImplementedError
+
+    def tear_down(self):
         raise NotImplementedError
 
 
@@ -72,11 +85,19 @@ class Pipeline:
         self.destination.health_check()
         self.state_machine.health_check()
 
+    def tear_down(self):
+        self.source.tear_down()
+        self.destination.tear_down()
+        self.state_machine.tear_down()
+
     def sync(self):
-        for data_point in self.source.read(
-                self.state_machine.get_latest_cursor()
-        ):
-            for transformed_data_point in self.transformer.transform(data_point):
-                self.destination.write(transformed_data_point)
-                self.state_machine.update_state(transformed_data_point.cursor)
+        try:
+            for data_point in self.source.read(
+                    self.state_machine.get_latest_cursor()
+            ):
+                for transformed_data_point in self.transformer.transform(data_point):
+                    self.destination.write(transformed_data_point)
+                    self.state_machine.update_cursor(transformed_data_point.cursor)
+        finally:
+            self.tear_down()
 

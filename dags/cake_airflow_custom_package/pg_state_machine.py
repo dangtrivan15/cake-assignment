@@ -7,8 +7,8 @@ from datetime import datetime
 
 
 class PostgresStateMachine(StateMachine):
-    def __init__(self, connection_id, uri):
-        self.connection_id = connection_id
+    def __init__(self, id, uri):
+        self.id = id
         self.conn = connect(uri)
         self.init_schema()
 
@@ -16,7 +16,7 @@ class PostgresStateMachine(StateMachine):
         with self.conn.cursor() as cur:
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS _cake_state_machine ("
-                "   connection_id VARCHAR PRIMARY KEY,"
+                "   id VARCHAR PRIMARY KEY,"
                 "   cursor timestamp"
                 ")"
             )
@@ -26,14 +26,14 @@ class PostgresStateMachine(StateMachine):
         with self.conn.cursor() as cur:
             cur.execute("SELECT 1")
 
-    def update_state(self, value: datetime):
+    def update_cursor(self, value: datetime):
         with self.conn.cursor() as cur:
             cur.execute(
-                f"INSERT INTO _cake_state_machine (connection_id, cursor) "
-                f"VALUES (%(connection_id)s, %(cursor)s) "
-                f"ON CONFLICT (connection_id) DO UPDATE SET cursor = EXCLUDED.cursor",
+                f"INSERT INTO _cake_state_machine (id, cursor) "
+                f"VALUES (%(id)s, %(cursor)s) "
+                f"ON CONFLICT (id) DO UPDATE SET cursor = EXCLUDED.cursor",
                 vars={
-                    'connection_id': self.connection_id,
+                    'id': self.id,
                     'cursor': value
                 }
             )
@@ -42,15 +42,18 @@ class PostgresStateMachine(StateMachine):
     def get_latest_cursor(self) -> Optional[datetime]:
         with self.conn.cursor() as cur:
             cur.execute(
-                f"SELECT cursor FROM _cake_state_machine WHERE connection_id = %(connection_id)s",
+                f"SELECT cursor FROM _cake_state_machine WHERE id = %(id)s",
                 vars={
-                    'connection_id': self.connection_id,
+                    'id': self.id,
                 }
             )
             result = cur.fetchone()
             if result is not None:
                 result = result[0]
             return result
+
+    def tear_down(self):
+        self.conn.close()
 
 
 def _make_db_uri(user, password, host, port, database, protocol):
