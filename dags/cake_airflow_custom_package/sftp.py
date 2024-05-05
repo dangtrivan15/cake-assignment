@@ -38,6 +38,7 @@ class SFTPSource(Source):
             raise Exception(f"Connection id {self._connection_id} tested fail")
 
     def list_new_files(self, from_time: datetime, from_name: str) -> list[File]:
+        # The arguments here are vague and does not reflect the below implementation
         result: list[File] = []
         for file_name in self._hook.list_directory(self.dir_path):
             file_path = join(self.dir_path, file_name)
@@ -47,7 +48,7 @@ class SFTPSource(Source):
             file = File(path=file_path, last_modified_time=modified_time)
             if (from_time, from_name) < (file.last_modified_time, file.path):
                 result.append(file)
-        return sorted(result, key=lambda f: (f.last_modified_time, f.path))
+        return result
 
     def read_file(self, file: File) -> Iterable[bytes]:
         with self._hook.get_conn().open(file.path, "rb") as f:
@@ -67,7 +68,10 @@ class SFTPSource(Source):
         else:
             from_time, from_name = from_state.cursor, from_state.id
 
-        for file in self.list_new_files(from_time=from_time, from_name=from_name):
+        for file in sorted(
+                self.list_new_files(from_time=from_time, from_name=from_name),
+                key=lambda f: (f.last_modified_time, f.path)
+        ):
             yield FileContent(
                 data=self.read_file(file),
                 state=State(
