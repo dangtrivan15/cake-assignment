@@ -26,6 +26,11 @@ Initially, the source has several files, while the destination has none (there i
 4. Come back to the repository and you will see that the data in the source has been transferred to the destination.
 There was a transformation that convert all `\s` characters to `_` so you should see that effect in the destination.
 
+> ***NOTE***
+>
+> You can add, delete or modified files in the sources and re-start from step 3 to see how data is sync accordingly.
+
+
 ## Context
 The File System integrations imposes several assumptions:
 * The data is unstructured, schema-less and acts as a container for other structured, semantic data.
