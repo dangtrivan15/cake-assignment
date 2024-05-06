@@ -34,6 +34,6 @@ with DAG(
         task_id="cake_health_check",
         python_callable=pipeline.health_check,
     ) >> PythonOperator(
-        task_id="sync",
+        task_id="cake_sync",
         python_callable=pipeline.sync,
     )
