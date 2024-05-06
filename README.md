@@ -24,7 +24,7 @@ Initially, the source has several files, while the destination has none.
 
 3. Go to `http://localhost:8080`, login with username `airflow` and password `airflow`, then trigger the DAG `cake_sftp_pipeline`. Wait until the workflow finishes.
 4. Come back to the repository and you will see that the data in the source has been transferred to the destination.
-There was a transformation that convert all `\s` characters to `_` so you should see that effect in the destination.
+There is a transformation that convert all `\s` characters to `_` so you should see that effect in the destination.
 
 > ***NOTE***
 >
