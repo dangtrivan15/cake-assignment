@@ -14,10 +14,10 @@ and many of its features are considered redundant (some are even considered verb
 The adoption of any should be based on use-cases and requirements. Further research will be made on-demand.
 
 ## Setup and Demographic
-While in the project's root:
+**While in the project's root**:
 1. run:
 ```shell
-docker-compose up
+docker-compose up -d
 ```
 2. Observe the repository, the `sftp_volume_source` folder represent the source file system (it was mounted), and correspondingly the `sftp_volume_dest` for destination.
 Initially, the source has several files, while the destination has none (there is a placeholder file that enables committing the folder for convenience's sake, you can skip them).
