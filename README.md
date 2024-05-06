@@ -28,7 +28,8 @@ There is a transformation that convert all `\s` characters to `_` so you should 
 
 > ***NOTE***
 >
-> You can add, delete or modified files in the sources and re-start from step 3 to see how data is sync accordingly.
+> You can add or modified files in the sources and re-start from step 3 to see how data is sync accordingly.\
+> Deletion, by the requirement, will not be replicated in the Destination.
 
 
 ## Context
