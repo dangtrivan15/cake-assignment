@@ -13,7 +13,7 @@ and many of its features are considered redundant (some are even considered verb
 
 The adoption of any should be based on use-cases and requirements. Further research will be made on-demand.
 
-## Setup and Demographic
+## Setup and Demo
 **While in the project's root**:
 1. run:
 ```shell
@@ -30,6 +30,9 @@ There is a transformation that convert all `\s` characters to `_` so you should 
 >
 > You can add or modified files in the sources and re-start from step 3 to see how data is sync accordingly.\
 > Deletion, by the requirement, will not be replicated in the Destination.
+> 
+> The architecture of the laptop might affect the containers initialization (The author ran on an Apple Silicon Macbook). 
+> Please contact the author in case any issue occurs.
 
 
 ## Context
