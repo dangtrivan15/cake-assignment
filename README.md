@@ -20,7 +20,7 @@ The adoption of any should be based on use-cases and requirements. Further resea
 docker-compose up -d
 ```
 2. Observe the repository, the `sftp_volume_source` folder represent the source file system (it was mounted), and correspondingly the `sftp_volume_dest` for destination.
-Initially, the source has several files, while the destination has none.
+Initially, the source has several files, while the destination has none (there is a placeholder file that enables committing the folder for convenience's sake, you can skip them).
 
 3. Go to `http://localhost:8080`, login with username `airflow` and password `airflow`, then trigger the DAG `cake_sftp_pipeline`. Wait until the workflow finishes.
 4. Come back to the repository and you will see that the data in the source has been transferred to the destination.
