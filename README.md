@@ -20,15 +20,15 @@ The adoption of any should be based on use-cases and requirements. Further resea
 docker-compose up -d
 ```
 2. Observe the repository, the `sftp_volume_source` folder represent the source file system (it was mounted), and correspondingly the `sftp_volume_dest` for destination.
-Initially, the source has several files, while the destination has none (there is a `.gitkeep` file that enables committing the folder for convenience's sake, you can skip them).
+Initially, the source has several files, while the destination has none (there is a `.gitkeep` file that enables committing the folder for convenience's sake, you can skip it).
 
 3. After the Airflow finish initializing, go to `http://localhost:8080`, login with username `airflow` and password `airflow`, then trigger the DAG `cake_sftp_pipeline`. Wait until the workflow finishes.
 4. Come back to the repository and you will see that the data in the source has been transferred to the destination.
-There is a transformation that convert all `\s` characters to `_` so you should see that effect in the destination.
+There is a transformation that converts all `\s` characters to `_` so you should see that effect in the destination.
 
 > ***NOTE***
 >
-> You can add or modified files in the sources and re-start from step 3 to see how data is sync accordingly.\
+> You can add or modify files in the sources and re-start from step 3 to see how data is synced accordingly.\
 > Deletion, by the requirement, will not be replicated in the Destination.
 > 
 > As the author left the selection of the platform architecture for each container to Docker Host itself, the architecture of the laptop (or the Docker application version itself) might affect the containers initialization (The author ran on an Apple Silicon Macbook). 
@@ -36,7 +36,7 @@ There is a transformation that convert all `\s` characters to `_` so you should 
 
 
 ## Context
-The File System integrations imposes several assumptions:
+The File System Integration imposes several assumptions:
 * The data is unstructured, schema-less and acts as a container for other structured, semantic data.
 It itself does not have business semantic.
 * The file itself is atomic unit for transferring.
